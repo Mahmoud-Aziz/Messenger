@@ -6,9 +6,10 @@
 //
 
 import UIKit
+import FirebaseAuth
 
 class RegisterViewController: UIViewController {
-
+    
     private let scrollView:UIScrollView = {
         let scrollView = UIScrollView()
         scrollView.isUserInteractionEnabled = true
@@ -19,8 +20,8 @@ class RegisterViewController: UIViewController {
     private let imageView:UIImageView = {
         let imageView = UIImageView()
         imageView.isUserInteractionEnabled = true
-
-        imageView.image = UIImage(systemName: "person")
+        
+        imageView.image = UIImage(systemName: "person.circle")
         imageView.tintColor = .gray
         imageView.contentMode = .scaleAspectFit
         imageView.layer.masksToBounds = true
@@ -134,12 +135,12 @@ class RegisterViewController: UIViewController {
         scrollView.isUserInteractionEnabled = true
         
         let gesture = UITapGestureRecognizer(target: self, action: #selector(didTapChangeProfilePic))
-
-     
-//        gesture.numberOfTouchesRequired = 1
-//        gesture.numberOfTapsRequired = 1
+        
+        
+        //        gesture.numberOfTouchesRequired = 1
+        //        gesture.numberOfTapsRequired = 1
         imageView.addGestureRecognizer(gesture)
-
+        
     }
     
     @objc private func didTapChangeProfilePic() {
@@ -176,7 +177,7 @@ class RegisterViewController: UIViewController {
         passwordField.resignFirstResponder()
         firstNameField.resignFirstResponder()
         lastNameField.resignFirstResponder()
-
+        
         
         guard let firstName = firstNameField.text,
               let lastName = lastNameField.text,
@@ -192,15 +193,47 @@ class RegisterViewController: UIViewController {
             return
         }
         
-        //firebase setup
+        //Firebase log in
+        DatabaseManager.shared.userExists(with: email, completion: { [weak self] exists in
+            
+            guard let strongSelf = self else {
+                return
+            }
+            guard !exists else {
+                //user already exist
+                strongSelf.alertUserLoginError(message: "User linked with this email address already exists")
+                return
+            }
+            
+            FirebaseAuth.Auth.auth().createUser(withEmail: email, password: password, completion: { authResult, error in
+                guard let strongSelf = self else {
+                    return
+                }
+                
+                guard authResult != nil , error == nil else {
+                    print("error creating user")
+                    return
+                }
+                
+                DatabaseManager.shared.insertUser(with: DatabaseManager.MessengerAppUser(
+                                                    firstName: firstName,
+                                                    lastName: lastName,
+                                                    emailAddress: email)
+                )
+                
+                strongSelf.navigationController?.dismiss(animated: true, completion: nil)
+                
+                
+                
+            })
+        })
         
     }
-    
-    func alertUserLoginError() {
-        let alert = UIAlertController(title: "", message: "Please enter all the required information to sign up", preferredStyle: .alert)
+    func alertUserLoginError(message:String = "Please enter all the required information to sign up") {
+        let alert = UIAlertController(title: "", message: message, preferredStyle: .alert)
         
         alert.addAction(UIAlertAction(title: "Dismiss", style: .cancel, handler: nil))
-
+        
         present(alert,animated: true)
         
     }
@@ -214,8 +247,8 @@ class RegisterViewController: UIViewController {
         navigationController?.pushViewController(vc, animated: true)
         
     }
-
-
+    
+    
 }
 
 extension RegisterViewController: UITextFieldDelegate {
@@ -247,7 +280,7 @@ extension RegisterViewController: UIImagePickerControllerDelegate, UINavigationC
         actionSheet.addAction(UIAlertAction(title: "Cancel", style: .default, handler: nil))
         
         present(actionSheet, animated: true)
-
+        
     }
     
     func presentCamera() {
@@ -260,11 +293,11 @@ extension RegisterViewController: UIImagePickerControllerDelegate, UINavigationC
     
     func presentPhotoPicker() {
         
-            let vc = UIImagePickerController()
-            vc.sourceType = .photoLibrary
-            vc.delegate = self
-            vc.allowsEditing = true
-            present(vc,animated: true)
+        let vc = UIImagePickerController()
+        vc.sourceType = .photoLibrary
+        vc.delegate = self
+        vc.allowsEditing = true
+        present(vc,animated: true)
     }
     
     

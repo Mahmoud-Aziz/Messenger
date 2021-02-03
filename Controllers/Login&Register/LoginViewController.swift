@@ -6,6 +6,9 @@
 //
 
 import UIKit
+import FirebaseAuth
+import FBSDKLoginKit
+import GoogleSignIn
 
 class LoginViewController: UIViewController {
     
@@ -17,7 +20,7 @@ class LoginViewController: UIViewController {
     
     private let imageView:UIImageView = {
         let imageView = UIImageView()
-        imageView.image = UIImage(named: "logo")
+        imageView.image = UIImage(systemName: "message.circle.fill")
         imageView.contentMode = .scaleAspectFit
         return imageView
     }()
@@ -67,8 +70,20 @@ class LoginViewController: UIViewController {
         return button
     }()
     
+    private let facebookLoginButton: FBLoginButton = {
+        let button = FBLoginButton()
+        button.permissions = ["email","public_profile"]
+        return button
+    }()
+    
+    private let googleLogInButton = GIDSignInButton()
+        
+    
+    
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        GIDSignIn.sharedInstance()?.presentingViewController = self
         
         title = "Log In"
         view.backgroundColor = .white
@@ -80,14 +95,19 @@ class LoginViewController: UIViewController {
         
         emailField.delegate = self
         passwordField.delegate = self
+        facebookLoginButton.delegate = self
         
         view.addSubview(scrollView)
         scrollView.addSubview(imageView)
         scrollView.addSubview(emailField)
         scrollView.addSubview(passwordField)
         scrollView.addSubview(loginButton)
-
-
+        scrollView.addSubview(googleLogInButton)
+        
+        let loginButton = FBLoginButton()
+        loginButton.center = view.center
+        scrollView.addSubview(facebookLoginButton)
+        
         
     }
     
@@ -105,6 +125,10 @@ class LoginViewController: UIViewController {
         passwordField.frame = CGRect(x: 30, y: emailField.bottom + 10, width: scrollView.width - 60, height: 52)
         
         loginButton.frame = CGRect(x: 30, y: passwordField.bottom + 10, width: scrollView.width - 60, height: 52)
+        
+        facebookLoginButton.frame = CGRect(x: 30, y: loginButton.bottom + 10, width: scrollView.width - 60, height: 52)
+        
+        googleLogInButton.frame = CGRect(x: 30, y: facebookLoginButton.bottom + 10, width: scrollView.width - 60, height: 52)
     }
     
     
@@ -121,6 +145,19 @@ class LoginViewController: UIViewController {
         
         //firebase log in
         
+        FirebaseAuth.Auth.auth().signIn(withEmail: email, password: password, completion: { [weak self] authResult, error in
+            guard let strongSelf = self else {
+                return
+            }
+            guard let results = authResult, error == nil else {
+                print("failed to log in user with email: \(email)")
+                return
+            }
+            let user = results.user
+            print("logged in user \(user)")
+            strongSelf.navigationController?.dismiss(animated: true, completion: nil)
+            
+        })
         
         
         
@@ -144,8 +181,8 @@ class LoginViewController: UIViewController {
         navigationController?.pushViewController(vc, animated: true)
         
     }
-
-
+    
+    
 }
 
 extension LoginViewController: UITextFieldDelegate {
@@ -158,4 +195,80 @@ extension LoginViewController: UITextFieldDelegate {
         }
         return true 
     }
+}
+
+extension LoginViewController: LoginButtonDelegate {
+    
+    
+    func loginButtonDidLogOut(_ loginButton: FBLoginButton) {
+        
+        //no operation
+    }
+    
+    
+    
+    func loginButton(_ loginButton: FBLoginButton, didCompleteWith result: LoginManagerLoginResult?, error: Error?) {
+        
+        guard let token = result?.token?.tokenString else {
+            print("user failed to log in with facebook")
+            
+            return
+        }
+        
+        let facebookRequest = FBSDKLoginKit.GraphRequest(graphPath: "me", parameters: ["fields": "email, name"], tokenString: token, version: nil, httpMethod: .get)
+        
+        facebookRequest.start { (_, result, errror) in
+            guard let result = result as? [String:Any] , error == nil else {
+                print("Failed to make facebook graph request")
+                return
+            }
+            print("\(result)")
+            
+            guard let userName = result["name"] as? String,
+                  let email = result["email"] as? String else {
+                print("failed to get email and mail from facebook result")
+                return
+            }
+            let nameComponents = userName.components(separatedBy: " ")
+            guard nameComponents.count == 2 else {
+                return
+            }
+            
+            let firstName = nameComponents[0]
+            let lastName = nameComponents[1]
+            
+            DatabaseManager.shared.userExists(with: email, completion: { exists in
+                if !exists {
+                    DatabaseManager.shared.insertUser(with: DatabaseManager.MessengerAppUser(firstName: firstName, lastName: lastName, emailAddress: email))
+                }
+            })
+            let credential = FacebookAuthProvider.credential(withAccessToken: token)
+            
+            FirebaseAuth.Auth.auth().signIn(with: credential, completion: { [weak self] authResult, error in
+                
+                guard let strongSelf = self else {
+                    return
+                }
+                guard authResult != nil, error == nil else {
+                    if let error = error {
+                        print("Facebook credentials login failed, MFA may be needed")
+                    }
+                    return
+                }
+                
+                print("Successfully log user in")
+                
+                if let token = AccessToken.current,
+                   !token.isExpired {
+                    strongSelf.navigationController?.dismiss(animated: true, completion: nil)
+                }
+                
+                
+            })
+        }
+        
+        
+    }
+    
+    
 }
