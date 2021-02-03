@@ -67,6 +67,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, GIDSignInDelegate {
                 //insert to database
                 DatabaseManager.shared.insertUser(with: DatabaseManager.MessengerAppUser(firstName: firstName, lastName: lastName, emailAddress: email))
             }
+            else if exists {
+                print("user exist")
+            }
         })
         
         guard let authentication = user.authentication else {
@@ -83,6 +86,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, GIDSignInDelegate {
                 return
             }
             print("successfully log in to google credential")
+            
+            NotificationCenter.default.post(name: .didLogInNotification, object: nil)
         })
     }
     
