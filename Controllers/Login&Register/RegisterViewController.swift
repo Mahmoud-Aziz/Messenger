@@ -7,8 +7,12 @@
 
 import UIKit
 import FirebaseAuth
+import JGProgressHUD
 
 class RegisterViewController: UIViewController {
+    
+    private let spinner = JGProgressHUD(style: .dark)
+
     
     private let scrollView:UIScrollView = {
         let scrollView = UIScrollView()
@@ -173,6 +177,9 @@ class RegisterViewController: UIViewController {
     
     @objc private func registerButtonTapped() {
         
+        spinner.show(in: view)
+
+        
         emailField.resignFirstResponder()
         passwordField.resignFirstResponder()
         firstNameField.resignFirstResponder()
@@ -195,6 +202,12 @@ class RegisterViewController: UIViewController {
         
         //Firebase log in
         DatabaseManager.shared.userExists(with: email, completion: { [weak self] exists in
+            
+            DispatchQueue.main.async {
+                self?.spinner.dismiss()
+
+            }
+            
             
             guard let strongSelf = self else {
                 return

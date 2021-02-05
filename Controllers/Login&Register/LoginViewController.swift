@@ -9,8 +9,11 @@ import UIKit
 import FirebaseAuth
 import FBSDKLoginKit
 import GoogleSignIn
+import JGProgressHUD
 
 class LoginViewController: UIViewController {
+    
+    private let spinner = JGProgressHUD(style: .dark)
     
     private let scrollView:UIScrollView = {
         let scrollView = UIScrollView()
@@ -156,9 +159,16 @@ class LoginViewController: UIViewController {
             return
         }
         
+        spinner.show(in: view)
+        
         //firebase log in
         
         FirebaseAuth.Auth.auth().signIn(withEmail: email, password: password, completion: { [weak self] authResult, error in
+            
+            DispatchQueue.main.async {
+                self?.spinner.dismiss()
+
+            }
             guard let strongSelf = self else {
                 return
             }
